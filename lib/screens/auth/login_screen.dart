@@ -174,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
                     labelText: 'Student Email',
-                    hintText: 'student@campus.edu',
+                    hintText: 'student@campus.com',
                     prefixIcon: Icon(Icons.email),
                     border: OutlineInputBorder(),
                   ),
@@ -293,7 +293,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Email: admin@campus.edu\nPassword: admin123',
+                        'Email: admin@campus.com\nPassword: admin123',
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                       ),
                     ],

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../voting/ballot_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
+import '../voting/ballot_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -53,35 +52,103 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ==========================================
-// 1. HOME DASHBOARD
+// 1. HOME DASHBOARD (WITH REAL DATA)
 // ==========================================
-class HomeTab extends StatelessWidget {
+class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
 
   @override
+  State<HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<HomeTab> {
+  int _activeElections = 0;
+  int _pendingElections = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadElectionStats();
+  }
+
+  Future<void> _loadElectionStats() async {
+    try {
+      final activeSnapshot = await FirebaseFirestore.instance
+          .collection('elections')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      final pendingSnapshot = await FirebaseFirestore.instance
+          .collection('elections')
+          .where('isActive', isEqualTo: false)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _activeElections = activeSnapshot.size;
+          _pendingElections = pendingSnapshot.size;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading election stats: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? user?.email?.split('@')[0] ?? 'Student';
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 160.0,
+            expandedHeight: 180.0,
             floating: false,
             pinned: true,
             backgroundColor: Colors.blue,
             flexibleSpace: FlexibleSpaceBar(
-              title: const Text('Dashboard', style: TextStyle(color: Colors.white)),
+              title: const Text('', style: TextStyle(color: Colors.white)),
               background: Container(
                 decoration: const BoxDecoration(
-                  gradient: LinearGradient(colors: [Colors.blue, Colors.lightBlueAccent]),
+                  gradient: LinearGradient(
+                    colors: [Colors.blue, Colors.lightBlueAccent],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-                child: const Padding(
-                  padding: EdgeInsets.all(20.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Welcome, Student!', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                      Text('Stay updated with campus governance.', style: TextStyle(color: Colors.white70)),
+                      const Text(
+                        'Dashboard',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Welcome, $userName!',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Stay updated with campus governance.',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
                     ],
                   ),
                 ),
@@ -94,16 +161,29 @@ class HomeTab extends StatelessWidget {
               delegate: SliverChildListDelegate([
                 Row(
                   children: [
-                    _buildStatCard('12', 'Active Elections', Icons.how_to_vote, Colors.blue),
+                    _buildStatCard(
+                      _isLoading ? '...' : _activeElections.toString(),
+                      'Active Elections',
+                      Icons.how_to_vote,
+                      Colors.blue,
+                    ),
                     const SizedBox(width: 16),
-                    _buildStatCard('3', 'Pending', Icons.pending_actions, Colors.orange),
+                    _buildStatCard(
+                      _isLoading ? '...' : _pendingElections.toString(),
+                      'Pending',
+                      Icons.pending_actions,
+                      Colors.orange,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
-                const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('Announcements', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('See all', style: TextStyle(color: Colors.blue)),
-                ]),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Announcements', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text('See all', style: TextStyle(color: Colors.blue)),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 _buildAnnouncementCard('SRC Elections 2026', 'Voting for Student Council starts today!', Icons.campaign, Colors.blue),
                 _buildAnnouncementCard('Library Hours Extended', 'Open until midnight during finals.', Icons.library_books, Colors.green),
@@ -121,13 +201,22 @@ class HomeTab extends StatelessWidget {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 2, blurRadius: 5)]),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, color: color, size: 30),
-          const SizedBox(height: 8),
-          Text(count, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87)),
-          Text(label, style: TextStyle(color: Colors.grey, fontSize: 12)),
-        ]),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 2, blurRadius: 5),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 30),
+            const SizedBox(height: 8),
+            Text(count, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87)),
+            Text(label, style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
       ),
     );
   }
@@ -137,7 +226,10 @@ class HomeTab extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
       child: ListTile(
-        leading: CircleAvatar(backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color)),
+        leading: CircleAvatar(
+          backgroundColor: color.withOpacity(0.1),
+          child: Icon(icon, color: color),
+        ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -251,8 +343,9 @@ class ElectionsList extends StatelessWidget {
     );
   }
 }
+
 // ==========================================
-// 3. POLICIES TAB
+// 3. POLICIES TAB (FIXED)
 // ==========================================
 class PoliciesTab extends StatefulWidget {
   const PoliciesTab({super.key});
@@ -442,53 +535,95 @@ class _PoliciesTabState extends State<PoliciesTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) => Column(
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
           children: [
-            Container(height: 4, width: 40, margin: const EdgeInsets.only(top: 12), decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: categoryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                          child: Text(policy['category'], style: TextStyle(color: categoryColor, fontSize: 12, fontWeight: FontWeight.bold))),
-                      const Spacer(),
-                      Text(policy['date'], style: const TextStyle(color: Colors.grey)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(policy['title'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView(
-                      controller: scrollController,
-                      children: [
-                        Text(policy['fullText'], style: const TextStyle(fontSize: 15, height: 1.6)),
-                        const SizedBox(height: 20),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                              SizedBox(width: 8),
-                              Expanded(child: Text('For questions, contact the Student Affairs Office or submit feedback through the app.', style: TextStyle(color: Colors.blue))),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: categoryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      policy['category'],
+                      style: TextStyle(
+                        color: categoryColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
+                  const Spacer(),
+                  Text(
+                    policy['date'],
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                 ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                policy['title'],
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      policy['fullText'],
+                      style: const TextStyle(fontSize: 15, height: 1.6),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'For questions, contact the Student Affairs Office or submit feedback through the app.',
+                              style: TextStyle(color: Colors.blue),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
           ],
@@ -499,7 +634,7 @@ class _PoliciesTabState extends State<PoliciesTab> {
 }
 
 // ==========================================
-// 4. PROFILE TAB (UPDATED - WITH FIREBASE)
+// 4. PROFILE TAB
 // ==========================================
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -518,7 +653,6 @@ class _ProfileTabState extends State<ProfileTab> {
     _loadUserData();
   }
 
-  // 🔹 Fetch User Data from Firestore
   Future<void> _loadUserData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -540,7 +674,6 @@ class _ProfileTabState extends State<ProfileTab> {
     }
   }
 
-  // 🔹 Edit Profile Dialog
   void _showEditProfileDialog() {
     final nameController = TextEditingController(text: _userData['name'] ?? '');
     final formKey = GlobalKey<FormState>();
@@ -582,7 +715,7 @@ class _ProfileTabState extends State<ProfileTab> {
                       .update({
                     'name': nameController.text.trim(),
                   });
-                  _loadUserData(); // Refresh
+                  _loadUserData();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -610,7 +743,6 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // 🔹 Coming Soon Dialog
   void _showComingSoon(String feature) {
     showDialog(
       context: context,
@@ -627,12 +759,10 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // 🔹 Working Logout (GoRouter compatible)
   Future<void> _handleLogout() async {
     await FirebaseAuth.instance.signOut();
     if (mounted) {
-      context.go('/login');  // ✅ Use GoRouter instead of Navigator
-
+      context.go('/login');
     }
   }
 
@@ -654,7 +784,6 @@ class _ProfileTabState extends State<ProfileTab> {
     return Scaffold(
       body: ListView(
         children: [
-          // 🔵 Header Section
           Container(
             padding: const EdgeInsets.only(top: 60, bottom: 30),
             decoration: BoxDecoration(
@@ -672,7 +801,6 @@ class _ProfileTabState extends State<ProfileTab> {
                   child: Icon(Icons.person, size: 50, color: Colors.blue),
                 ),
                 const SizedBox(height: 16),
-                // ✅ Real Name from Firestore
                 Text(
                   name,
                   style: const TextStyle(
@@ -681,13 +809,11 @@ class _ProfileTabState extends State<ProfileTab> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                // ✅ Real Email from FirebaseAuth
                 Text(
                   email,
                   style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
-                // ✅ Student ID & Program from Firestore
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -704,10 +830,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ],
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // 📂 Account Settings
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
@@ -722,7 +845,6 @@ class _ProfileTabState extends State<ProfileTab> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // ✅ Working Edit Profile
                 _buildMenuItem(
                   context,
                   Icons.edit,
@@ -750,10 +872,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ],
             ),
           ),
-
           const SizedBox(height: 24),
-
-          // 📂 App Preferences
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
@@ -789,10 +908,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ],
             ),
           ),
-
           const SizedBox(height: 30),
-
-          // 🚪 Working Logout Button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SizedBox(
@@ -817,7 +933,6 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // Helper Widget for Menu Items
   Widget _buildMenuItem(
       BuildContext context,
       IconData icon,
